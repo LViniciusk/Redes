@@ -7,7 +7,14 @@ DB_FILE = os.path.join("servidor/database", "database.db")
 OUTPUT_FILE = f"relatorio_de_uso_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
 
 def format_bytes(size):
-    if not isinstance(size, (int, float)) or size == 0: return "0 B"
+    try:
+        size = float(size)
+    except (ValueError, TypeError):
+        return "0 B"
+        
+    if size == 0: 
+        return "0 B"
+        
     power, n = 1024, 0
     power_labels = {0: 'B', 1: 'KB', 2: 'MB', 3: 'GB', 4: 'TB'}
     while size >= power and n < len(power_labels) - 1:
@@ -68,14 +75,33 @@ def create_dashboard_spreadsheet():
         }
         df_summary = pd.DataFrame(summary_data)
 
-        user_summary = df_log.groupby('user_login').apply(
-            lambda x: pd.Series({
-                'Uploads (Qtd)': x[x['activity_type'] == 'UPLOAD'].shape[0],
-                'Uploads (Vol)': format_bytes(x[x['activity_type'] == 'UPLOAD']['file_size_bytes'].sum()),
-                'Downloads (Qtd)': x[x['activity_type'] == 'DOWNLOAD'].shape[0],
-                'Downloads (Vol)': format_bytes(x[x['activity_type'] == 'DOWNLOAD']['file_size_bytes'].sum())
+        # Criar resumo por usuário usando agg() para evitar warnings
+        upload_stats = df_log[df_log['activity_type'] == 'UPLOAD'].groupby('user_login').agg({
+            'file_size_bytes': ['count', 'sum']
+        }).fillna(0)
+        download_stats = df_log[df_log['activity_type'] == 'DOWNLOAD'].groupby('user_login').agg({
+            'file_size_bytes': ['count', 'sum']
+        }).fillna(0)
+        
+        # Obter todos os usuários únicos
+        all_users = df_log['user_login'].unique()
+        
+        user_summary_data = []
+        for user in all_users:
+            upload_count = upload_stats.loc[user, ('file_size_bytes', 'count')] if user in upload_stats.index else 0
+            upload_bytes = upload_stats.loc[user, ('file_size_bytes', 'sum')] if user in upload_stats.index else 0
+            download_count = download_stats.loc[user, ('file_size_bytes', 'count')] if user in download_stats.index else 0
+            download_bytes = download_stats.loc[user, ('file_size_bytes', 'sum')] if user in download_stats.index else 0
+            
+            user_summary_data.append({
+                'Usuário': user,
+                'Uploads (Qtd)': int(upload_count),
+                'Uploads (Vol)': format_bytes(upload_bytes),
+                'Downloads (Qtd)': int(download_count),
+                'Downloads (Vol)': format_bytes(download_bytes)
             })
-        ).reset_index().rename(columns={'user_login': 'Usuário'})
+        
+        user_summary = pd.DataFrame(user_summary_data)
         
         df_recent = df_log.sort_values(by='activity_timestamp', ascending=False).head(10)
         df_recent['Tamanho'] = df_recent['file_size_bytes'].apply(format_bytes)

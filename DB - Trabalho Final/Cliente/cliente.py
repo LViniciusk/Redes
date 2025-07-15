@@ -151,7 +151,7 @@ class CloudClient:
         self.decrypted_path = ""
 
         try:
-            icon_path = resource_path('icon.ico') 
+            icon_path = resource_path('icons/icon.ico') 
             self.root.iconbitmap(icon_path)
         except Exception as e:
             print(f"Aviso: Não foi possível carregar o ícone da janela: {e}")
@@ -851,7 +851,8 @@ class CloudClient:
         temp_sock = None
 
         try:
-            context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile="cert.pem")
+            cert_path = resource_path("cert.pem")
+            context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=cert_path)
             context.check_hostname = False
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             temp_sock = context.wrap_socket(sock, server_hostname=HOST)

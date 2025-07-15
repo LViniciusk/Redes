@@ -8,7 +8,7 @@ import json
 import zipfile
 import io
 import time
-import traceback
+from datetime import datetime
 
 HOST = 'localhost'
 PORT = 65432
@@ -25,6 +25,7 @@ class DatabaseManager:
         self.conn = sqlite3.connect(db_file, check_same_thread=False)
         self.create_user_table()
         self.create_metadata_table()
+        self.create_activity_log_table()
 
 
     def create_user_table(self):
@@ -58,6 +59,20 @@ class DatabaseManager:
         """
         cursor = self.conn.cursor()
         cursor.execute(sql)
+        self.conn.commit()
+
+    
+    def create_activity_log_table(self):
+        sql = """
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_login TEXT NOT NULL,
+            activity_type TEXT NOT NULL, -- 'UPLOAD' ou 'DOWNLOAD'
+            file_size_bytes INTEGER NOT NULL,
+            activity_timestamp TEXT NOT NULL -- Data e hora da transação
+        );
+        """
+        self.conn.execute(sql)
         self.conn.commit()
 
 
@@ -159,16 +174,30 @@ class DatabaseManager:
     
     
     def log_upload(self, login, filesize):
-        sql = "UPDATE usuarios SET upload_count = upload_count + 1, total_bytes_uploaded = total_bytes_uploaded + ? WHERE login = ?"
-        cursor = self.conn.cursor()
-        cursor.execute(sql, (filesize, login))
+        update_sql = "UPDATE usuarios SET upload_count = upload_count + 1, total_bytes_uploaded = total_bytes_uploaded + ? WHERE login = ?"
+        self.conn.execute(update_sql, (filesize, login))
+        
+        insert_sql = """
+        INSERT INTO activity_log (user_login, activity_type, file_size_bytes, activity_timestamp)
+        VALUES (?, ?, ?, ?)
+        """
+        timestamp = datetime.now().isoformat()
+        self.conn.execute(insert_sql, (login, 'UPLOAD', filesize, timestamp))
+        
         self.conn.commit()
 
     
     def log_download(self, login, filesize):
-        sql = "UPDATE usuarios SET download_count = download_count + 1, total_bytes_downloaded = total_bytes_downloaded + ? WHERE login = ?"
-        cursor = self.conn.cursor()
-        cursor.execute(sql, (filesize, login))
+        update_sql = "UPDATE usuarios SET download_count = download_count + 1, total_bytes_downloaded = total_bytes_downloaded + ? WHERE login = ?"
+        self.conn.execute(update_sql, (filesize, login))
+        
+        insert_sql = """
+        INSERT INTO activity_log (user_login, activity_type, file_size_bytes, activity_timestamp)
+        VALUES (?, ?, ?, ?)
+        """
+        timestamp = datetime.now().isoformat()
+        self.conn.execute(insert_sql, (login, 'DOWNLOAD', filesize, timestamp))
+        
         self.conn.commit()
 
     
@@ -299,7 +328,7 @@ def handle_client(secure_conn, addr):
                         else:
                             secure_conn.send("ERRO|Falha ao obter dados de segurança do usuário.".encode('utf-8'))
                     else:
-                        secure_conn.send("ERRO|usuario não existe".encode('utf-8'))
+                        secure_conn.send("ERRO|Usuário ou senha inválidos".encode('utf-8'))
 
                 elif command == "REGISTER":
                     if db_manager.register_user(login, password):
@@ -648,10 +677,16 @@ def main():
     print(f"[ESCUTANDO] Servidor seguro está escutando em {HOST}:{PORT}")
 
     while True:
-        conn, addr = server.accept()
-        secure_conn = context.wrap_socket(conn, server_side=True)
-        thread = threading.Thread(target=handle_client, args=(secure_conn, addr))
-        thread.start()
+        try:
+            conn, addr = server.accept()
+            secure_conn = context.wrap_socket(conn, server_side=True)
+            thread = threading.Thread(target=handle_client, args=(secure_conn, addr))
+            thread.start()
+        except ssl.SSLError as e:
+            print(f"[AVISO SSL] Uma conexão de {addr if 'addr' in locals() else 'endereço desconhecido'} falhou no handshake: {e}")
+        
+        except Exception as e:
+            print(f"[ERRO CRÍTICO NO LOOP PRINCIPAL] {e}")
 
 
 if __name__ == "__main__":
