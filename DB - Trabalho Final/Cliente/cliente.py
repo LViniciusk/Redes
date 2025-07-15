@@ -151,11 +151,17 @@ class CloudClient:
         try:
             icon_path = resource_path('icons/icon.ico') 
             self.root.iconbitmap(icon_path)
+            self.root.iconphoto(True, icon_path)
         except Exception as e:
-            print(f"Aviso: Não foi possível carregar o ícone da janela: {e}")
+            try:
+                icon_png_path = resource_path('icons/icon.png')
+                png_icon = tk.PhotoImage(file=icon_png_path)
+                self.root.iconphoto(True, png_icon)
+            except Exception as e:
+                print(f"Aviso: Não foi possível carregar o ícone da janela: {e}")
+
 
         try:
-            icon_path = 'icons/' 
             self.folder_icon = tk.PhotoImage(file=resource_path('icons/folder.png'))
             self.text_icon = tk.PhotoImage(file=resource_path('icons/text.png'))
             self.pdf_icon = tk.PhotoImage(file=resource_path('icons/pdf.png'))
