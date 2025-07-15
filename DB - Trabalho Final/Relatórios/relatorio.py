@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime, timedelta
 
-DB_FILE = os.path.join("servidor/database", "database.db")
+DB_FILE = os.path.join("../servidor/database", "database.db")
 OUTPUT_FILE = f"relatorio_de_uso_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
 
 def format_bytes(size):

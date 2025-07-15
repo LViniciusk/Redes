@@ -18,8 +18,6 @@ from cryptography.hazmat.backends import default_backend
 from datetime import datetime
 
 
-HOST = 'localhost'
-PORT = 0
 BUFFER_SIZE = 4096
 
 
@@ -767,8 +765,8 @@ class CloudClient:
 
 
     def connect_to_server(self):
-        host = self.host_entry.get()
-        port_str = self.port_entry.get()
+        host = self.host_entry.get().strip()
+        port_str = self.port_entry.get().strip()
 
         if not host or not port_str:
             messagebox.showerror("Erro de Conexão", "Host e Porta do servidor são obrigatórios.")
@@ -840,12 +838,21 @@ class CloudClient:
     def register(self):
         login = self.login_entry.get()
         password = self.password_entry.get()
-        host = self.host_entry.get()
-        port_str = self.port_entry.get()
-        port = int(port_str)
+        host = self.host_entry.get().strip()
+        port_str = self.port_entry.get().strip()
 
         if not login or not password:
             messagebox.showerror("Erro", "Login e senha são obrigatórios.")
+            return
+        
+        if not host or not port_str:
+            messagebox.showerror("Erro de Conexão", "Host e Porta do servidor são obrigatórios.")
+            return
+
+        try:
+            port = int(port_str)
+        except ValueError:
+            messagebox.showerror("Erro de Conexão", "A porta deve ser um número válido.")
             return
         
         temp_sock = None
@@ -855,7 +862,7 @@ class CloudClient:
             context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=cert_path)
             context.check_hostname = False
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            temp_sock = context.wrap_socket(sock, server_hostname=HOST)
+            temp_sock = context.wrap_socket(sock, server_hostname=host)
             temp_sock.connect((host, port))
             temp_sock.send(f"REGISTER|{login}|{password}".encode('utf-8'))
             response = temp_sock.recv(BUFFER_SIZE).decode('utf-8').split('|')
